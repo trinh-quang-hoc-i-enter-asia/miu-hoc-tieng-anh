@@ -1,0 +1,57 @@
+/* Tailwind: chỉ nạp lớp tiện ích, không nạp lớp reset để không phá giao diện của bé (kid.css). */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Baloo 2", "Nunito", "Quicksand", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  background: #CFE3FF;
+  color: #23254D;
+}
+@media (prefers-color-scheme: dark) {
+  body { background: #171A3A; color: #FFF7E0; }
+}
+
+/* Giao diện phụ huynh và quản trị (chế độ có chữ, biểu mẫu, bảng). */
+.ui { --paper: #FFFDF6; --ink: #23254D; --muted: #565A8C; --line: #23254D; --sun: #FFCB3C; --tomato: #FF5A4E; --leaf: #3DBE8B;
+  max-width: 960px; margin: 0 auto; padding: 16px 16px 48px; box-sizing: border-box; color: var(--ink); line-height: 1.45; }
+.ui *, .ui *::before, .ui *::after { box-sizing: inherit; }
+@media (prefers-color-scheme: dark) {
+  .ui { --paper: #2A2F60; --ink: #FFF7E0; --muted: #B9BCE6; --line: #0B0D26; }
+}
+.ui h1 { font-size: 1.9rem; margin: 0.4em 0 0.3em; line-height: 1.15; }
+.ui h2 { font-size: 1.35rem; margin: 1.2em 0 0.4em; }
+.ui p { margin: 0.4em 0; }
+.ui a { color: inherit; }
+.ui .muted { color: var(--muted); }
+.ui .card { background: var(--paper); border: 3px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: 0 4px 0 var(--line); }
+.ui .grid { display: grid; gap: 14px; }
+.ui .grid.cols-2 { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.ui .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.ui .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ui .btn { font: inherit; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 12px; border: 3px solid var(--line); background: var(--paper); color: var(--ink); box-shadow: 0 3px 0 var(--line); }
+.ui .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--line); }
+.ui .btn.primary { background: var(--sun); color: #23254D; }
+.ui .btn.danger { background: var(--tomato); color: #fff; }
+.ui .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.ui label { display: block; font-weight: 700; margin: 12px 0 4px; }
+.ui .input { box-sizing: border-box; font: inherit; width: 100%; max-width: 420px; padding: 8px 12px; border-radius: 12px; border: 3px solid var(--line); background: var(--paper); color: var(--ink); }
+.ui textarea.input { max-width: 100%; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85rem; min-height: 180px; }
+.ui .error { color: #C0261B; font-weight: 700; }
+@media (prefers-color-scheme: dark) { .ui .error { color: #FF8A80; } }
+.ui .ok { color: #1F8A5F; font-weight: 700; }
+.ui table { border-collapse: collapse; width: 100%; background: var(--paper); border: 3px solid var(--line); border-radius: 12px; overflow: hidden; }
+.ui th, .ui td { text-align: left; padding: 8px 12px; border-bottom: 2px solid color-mix(in srgb, var(--line) 25%, transparent); }
+.ui th { font-size: 0.85rem; text-transform: none; color: var(--muted); }
+.ui .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; border: 2px solid var(--line); font-size: 0.8rem; font-weight: 700; }
+.ui .pill.live { background: var(--leaf); color: #fff; border-color: var(--leaf); }
+.ui .avatar { width: 64px; height: 64px; border-radius: 16px; border: 3px solid var(--line); overflow: hidden; background: #fff; flex: none; }
+.ui .avatar svg { width: 100%; height: 100%; display: block; }
+.ui .avatars { display: flex; gap: 10px; flex-wrap: wrap; }
+.ui .avatars label { margin: 0; cursor: pointer; }
+.ui .avatars input { position: absolute; opacity: 0; }
+.ui .avatars input:checked + .avatar { outline: 4px solid var(--tomato); outline-offset: 2px; }
+.ui .bars { display: flex; align-items: flex-end; gap: 8px; height: 90px; }
+.ui .bars div { flex: 1; text-align: center; font-size: 0.75rem; }
+.ui .bars i { display: block; background: var(--sun); border: 2px solid var(--line); border-radius: 6px 6px 0 0; min-height: 3px; }

@@ -1,0 +1,315 @@
+// Lược đồ database của Miu học tiếng Anh.
+// Ba nhóm bảng: tài khoản, nội dung, tiến độ.
+// Khác với tài liệu thiết kế ở vài cột nhỏ, đều ghi chú "Bổ sung" bên dưới.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================ NHÓM TÀI KHOẢN ============================
+
+model Parent {
+  id        String    @id @default(uuid()) @db.Uuid
+  email     String    @unique
+  locale    String    @default("vi")
+  consentAt DateTime? @map("consent_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  sessions Session[]
+  children Child[]
+
+  @@map("parents")
+}
+
+model LoginCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  email     String
+  codeHash  String    @map("code_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  // Bổ sung: đếm số lần nhập sai để khóa mã.
+  attempts  Int       @default(0)
+  // Bổ sung: "parent" = đăng nhập phụ huynh; "staff" = đăng nhập khu soạn bài.
+  // Cùng một email có thể có cả hai, nên mã của bên này không dùng được cho bên kia.
+  purpose   String    @default("parent")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([email, purpose, createdAt])
+  @@map("login_codes")
+}
+
+model Session {
+  id         String   @id @default(uuid()) @db.Uuid
+  parentId   String   @map("parent_id") @db.Uuid
+  tokenHash  String   @unique @map("token_hash")
+  expiresAt  DateTime @map("expires_at")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  parent Parent @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@index([parentId])
+  @@map("sessions")
+}
+
+model Child {
+  id                String   @id @default(uuid()) @db.Uuid
+  parentId          String   @map("parent_id") @db.Uuid
+  nickname          String
+  birthYear         Int      @map("birth_year")
+  avatarKey         String   @default("miu") @map("avatar_key")
+  dailyLimitMinutes Int?     @map("daily_limit_minutes")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  parent         Parent          @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  events         ActivityEvent[]
+  lessonProgress LessonProgress[]
+  phraseProgress PhraseProgress[]
+  dailyActivity  DailyActivity[]
+  stickers       ChildSticker[]
+
+  @@index([parentId])
+  @@map("children")
+}
+
+// Người soạn nội dung. Tài khoản riêng, đăng nhập ở /admin/login, không cần là phụ huynh.
+model Staff {
+  id    String @id @default(uuid()) @db.Uuid
+  email String @unique
+  // Chưa dùng: mọi người soạn đều có toàn quyền.
+  role  String @default("editor")
+
+  sessions StaffSession[]
+
+  @@map("staff")
+}
+
+// Bổ sung: phiên đăng nhập của người soạn nội dung, tách khỏi phiên phụ huynh.
+model StaffSession {
+  id         String   @id @default(uuid()) @db.Uuid
+  staffId    String   @map("staff_id") @db.Uuid
+  tokenHash  String   @unique @map("token_hash")
+  expiresAt  DateTime @map("expires_at")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@map("staff_sessions")
+}
+
+// ============================ NHÓM NỘI DUNG ============================
+
+model Topic {
+  id         String @id @default(uuid()) @db.Uuid
+  slug       String @unique
+  titleVi    String @map("title_vi")
+  position   Int
+  // Bổ sung: hình bìa lấy từ thư viện hình SVG trong code (xem src/lesson-engine/art.ts).
+  artKey     String @default("hello") @map("art_key")
+  coverAssetId String? @map("cover_asset_id") @db.Uuid
+  status     String @default("draft")
+
+  lessons Lesson[]
+  coverAsset Asset? @relation(fields: [coverAssetId], references: [id])
+
+  @@map("topics")
+}
+
+model Lesson {
+  id             String    @id @default(uuid()) @db.Uuid
+  topicId        String    @map("topic_id") @db.Uuid
+  slug           String    @unique
+  titleVi        String    @map("title_vi")
+  position       Int
+  status         String    @default("draft")
+  version        Int       @default(0)
+  publishedAt    DateTime? @map("published_at")
+  // Bổ sung: để trang quản trị biết bản nháp đã sửa sau lần xuất bản gần nhất chưa.
+  draftUpdatedAt DateTime  @default(now()) @map("draft_updated_at")
+
+  topic    Topic          @relation(fields: [topicId], references: [id])
+  steps    LessonStep[]
+  phrases  LessonPhrase[]
+  sticker  Sticker?
+  events   ActivityEvent[]
+  progress LessonProgress[]
+
+  @@index([topicId, position])
+  @@map("lessons")
+}
+
+model LessonStep {
+  id       String @id @default(uuid()) @db.Uuid
+  lessonId String @map("lesson_id") @db.Uuid
+  position Int
+  type     String
+  config   Json
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, position])
+  @@map("lesson_steps")
+}
+
+model Phrase {
+  id     String  @id @default(uuid()) @db.Uuid
+  // Bổ sung: mã chữ ổn định để cấu hình bước tham chiếu (vd. "hello", "ui-tip-listen").
+  slug   String  @unique
+  kind   String  // "en" = câu tiếng Anh cần dạy; "vi" = lời hướng dẫn tiếng Việt
+  textEn String? @map("text_en")
+  textVi String? @map("text_vi")
+
+  audio   PhraseAudio[]
+  lessons LessonPhrase[]
+  events  ActivityEvent[]
+  progress PhraseProgress[]
+
+  @@map("phrases")
+}
+
+model PhraseAudio {
+  phraseId String @map("phrase_id") @db.Uuid
+  voice    String
+  assetId  String @map("asset_id") @db.Uuid
+
+  phrase Phrase @relation(fields: [phraseId], references: [id], onDelete: Cascade)
+  asset  Asset  @relation(fields: [assetId], references: [id])
+
+  @@id([phraseId, voice])
+  @@map("phrase_audio")
+}
+
+model LessonPhrase {
+  lessonId String @map("lesson_id") @db.Uuid
+  phraseId String @map("phrase_id") @db.Uuid
+  position Int
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  phrase Phrase @relation(fields: [phraseId], references: [id])
+
+  @@id([lessonId, phraseId])
+  @@map("lesson_phrases")
+}
+
+model Asset {
+  id         String @id @default(uuid()) @db.Uuid
+  kind       String // "audio_wav" = bản gốc; bản MP3/AAC suy ra theo storageKey
+  storageKey String @unique @map("storage_key")
+  mimeType   String @map("mime_type")
+  bytes      Int
+  durationMs Int?   @map("duration_ms")
+  checksum   String
+
+  phraseAudio PhraseAudio[]
+  topics      Topic[]
+  stickers    Sticker[]
+
+  @@map("assets")
+}
+
+model Sticker {
+  id       String  @id @default(uuid()) @db.Uuid
+  lessonId String  @unique @map("lesson_id") @db.Uuid
+  nameVi   String  @map("name_vi")
+  // Bổ sung: hình nhãn dán lấy từ thư viện hình SVG trong code.
+  artKey   String  @default("miu") @map("art_key")
+  assetId  String? @map("asset_id") @db.Uuid
+
+  lesson Lesson         @relation(fields: [lessonId], references: [id])
+  asset  Asset?         @relation(fields: [assetId], references: [id])
+  owners ChildSticker[]
+
+  @@map("stickers")
+}
+
+// ============================ NHÓM TIẾN ĐỘ ============================
+
+model ActivityEvent {
+  // Mã do trình duyệt tạo, nên gửi lại bao nhiêu lần máy chủ cũng chỉ nhận một.
+  id            String   @id @db.Uuid
+  childId       String   @map("child_id") @db.Uuid
+  lessonId      String   @map("lesson_id") @db.Uuid
+  lessonVersion Int      @map("lesson_version")
+  stepType      String?  @map("step_type")
+  phraseId      String?  @map("phrase_id") @db.Uuid
+  kind          String
+  // Bổ sung: số giây, số sao, chỉ số bước đi kèm sự kiện.
+  payload       Json?
+  occurredAt    DateTime @map("occurred_at")
+  receivedAt    DateTime @default(now()) @map("received_at")
+
+  child  Child   @relation(fields: [childId], references: [id], onDelete: Cascade)
+  lesson Lesson  @relation(fields: [lessonId], references: [id])
+  phrase Phrase? @relation(fields: [phraseId], references: [id])
+
+  @@index([childId, occurredAt])
+  @@map("activity_events")
+}
+
+model LessonProgress {
+  childId          String    @map("child_id") @db.Uuid
+  lessonId         String    @map("lesson_id") @db.Uuid
+  status           String    @default("not_started")
+  lastStep         Int       @default(0) @map("last_step")
+  bestStars        Int       @default(0) @map("best_stars")
+  timesCompleted   Int       @default(0) @map("times_completed")
+  firstCompletedAt DateTime? @map("first_completed_at")
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  child  Child  @relation(fields: [childId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id])
+
+  @@id([childId, lessonId])
+  @@map("lesson_progress")
+}
+
+model PhraseProgress {
+  childId      String    @map("child_id") @db.Uuid
+  phraseId     String    @map("phrase_id") @db.Uuid
+  heardCount   Int       @default(0) @map("heard_count")
+  correctCount Int       @default(0) @map("correct_count")
+  wrongCount   Int       @default(0) @map("wrong_count")
+  spokenCount  Int       @default(0) @map("spoken_count")
+  lastSeenAt   DateTime? @map("last_seen_at")
+  nextReviewAt DateTime? @map("next_review_at")
+
+  child  Child  @relation(fields: [childId], references: [id], onDelete: Cascade)
+  phrase Phrase @relation(fields: [phraseId], references: [id])
+
+  @@id([childId, phraseId])
+  @@index([childId, nextReviewAt])
+  @@map("phrase_progress")
+}
+
+model DailyActivity {
+  childId          String   @map("child_id") @db.Uuid
+  day              DateTime @db.Date
+  secondsLearned   Int      @default(0) @map("seconds_learned")
+  lessonsCompleted Int      @default(0) @map("lessons_completed")
+  starsEarned      Int      @default(0) @map("stars_earned")
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@id([childId, day])
+  @@map("daily_activity")
+}
+
+model ChildSticker {
+  childId   String   @map("child_id") @db.Uuid
+  stickerId String   @map("sticker_id") @db.Uuid
+  earnedAt  DateTime @default(now()) @map("earned_at")
+
+  child   Child   @relation(fields: [childId], references: [id], onDelete: Cascade)
+  sticker Sticker @relation(fields: [stickerId], references: [id])
+
+  @@id([childId, stickerId])
+  @@map("child_stickers")
+}
